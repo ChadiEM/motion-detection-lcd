@@ -6,7 +6,7 @@ from timeouter.trigger import Trigger
 
 class ScreenTrigger(Trigger):
     def turn_on(self):
-        print('Turning screen on')
+        print('Turning screen on.')
 
         env = dict(os.environ, XAUTHORITY="~/.Xauthority", DISPLAY=':0')
 
@@ -15,7 +15,7 @@ class ScreenTrigger(Trigger):
         subprocess.call('xset s off', shell=True, env=env)
 
     def turn_off(self):
-        print('Turning screen off')
+        print('Turning screen off.')
 
         env = dict(os.environ, XAUTHORITY="~/.Xauthority", DISPLAY=':0')
 

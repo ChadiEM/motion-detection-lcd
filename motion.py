@@ -1,45 +1,25 @@
 #!/usr/bin/env python3
-import argparse
-import time
+import signal
 
-import RPi.GPIO as GPIO
-
+from argparser import MotionArgParser
+from gpio_listener import GPIOListener
 from screen import ScreenTrigger
 from timeouter.timeouter import Timeouter
 
-parser = argparse.ArgumentParser(description='Activates motion detection')
-parser.add_argument('--pin', required=True, type=int,
-                    help='the GPIO pin of the motion detector')
-parser.add_argument('--timeout', required=False, default=120, type=int,
-                    help='the timeout in seconds for the screen to turn off after motion')
-parser.add_argument('-v', '--verbose', required=False, action='store_true',
-                    help='activates verbose mode for motion detection')
+if __name__ == '__main__':
+    parser = MotionArgParser()
 
-args = vars(parser.parse_args())
+    print(f'Starting motion detection:'
+          f' pin={str(parser.pin())},'
+          f' timeout={str(parser.timeout())}s,'
+          f' verbose={str(parser.verbose())}')
 
-pir_pin = args['pin']
-timeout = args['timeout']
-verbose = args['verbose']
+    screen = ScreenTrigger()
+    timeouter = Timeouter(parser.timeout(), screen)
 
-GPIO.setmode(GPIO.BCM)
-GPIO.setup(pir_pin, GPIO.IN)
+    gpio_listener = GPIOListener(parser.pin(), parser.verbose(), timeouter)
 
-screen = ScreenTrigger()
-timeouter = Timeouter(timeout, screen)
+    signal.signal(signal.SIGINT, gpio_listener.interrupt)
+    signal.signal(signal.SIGTERM, gpio_listener.interrupt)
 
-
-def motion(channel):
-    if verbose:
-        print('Motion detected')
-
-    timeouter.update()
-
-
-print('Starting motion detection: pin=' + str(pir_pin) + ', timeout=' + str(timeout) + ', verbose=' + str(verbose))
-
-try:
-    GPIO.add_event_detect(pir_pin, GPIO.RISING, callback=motion)
-    while True:
-        time.sleep(100)
-except KeyboardInterrupt:
-    GPIO.cleanup()
+    gpio_listener.start()
