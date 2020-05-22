@@ -19,7 +19,14 @@ if __name__ == '__main__':
 
     gpio_listener = GPIOListener(parser.pin(), parser.verbose(), timeouter)
 
-    signal.signal(signal.SIGINT, gpio_listener.interrupt)
-    signal.signal(signal.SIGTERM, gpio_listener.interrupt)
+
+    def interrupt(signum, frame):
+        print(f'Caught signal {signum}')
+        gpio_listener.interrupt()
+        timeouter.interrupt()
+
+
+    signal.signal(signal.SIGINT, interrupt)
+    signal.signal(signal.SIGTERM, interrupt)
 
     gpio_listener.start()

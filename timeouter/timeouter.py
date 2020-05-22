@@ -6,13 +6,15 @@ from timeouter.trigger import Trigger
 
 class Timeouter(Thread):
     def __init__(self, timeout: int, trigger: Trigger):
-        super().__init__(daemon=True)
+        super().__init__()
         self.timeout = timeout
         self.trigger = trigger
         self.event_active = Event()
+        self.interrupted = Event()
         self.lock = RLock()
         self.expiry = self._updated_expiry()
 
+        # start thread
         self.start()
 
         # start with activity, and allow expiry (and turning off) to be triggered
@@ -30,11 +32,13 @@ class Timeouter(Thread):
             self.lock.release()
 
     def run(self) -> None:
-        while True:
+        while not self.interrupted.is_set():
             # block until an activity occurs
             self.event_active.wait()
 
-            time.sleep(max(self.expiry - time.time(), 0))
+            self.interrupted.wait(
+                max(self.expiry - time.time(), 0)
+            )
 
             self.lock.acquire()
             try:
@@ -43,6 +47,10 @@ class Timeouter(Thread):
                     self.event_active.clear()
             finally:
                 self.lock.release()
+
+    def interrupt(self):
+        self.interrupted.set()
+        self.event_active.set()
 
     def _updated_expiry(self):
         return time.time() + self.timeout

@@ -9,7 +9,7 @@ class GPIOListener:
         self._verbose = verbose
         self._timeouter = timeouter
 
-        self.shutdown_flag = threading.Event()
+        self.interrupted = threading.Event()
 
     def start(self):
         try:
@@ -17,8 +17,9 @@ class GPIOListener:
             GPIO.setup(self._pin, GPIO.IN)
 
             GPIO.add_event_detect(self._pin, GPIO.RISING, callback=self.motion)
-            self.shutdown_flag.wait()
+            self.interrupted.wait()
         finally:
+            GPIO.remove_event_detect(self._pin)
             GPIO.cleanup()
             print('Shutdown gracefully.')
 
@@ -28,6 +29,5 @@ class GPIOListener:
 
         self._timeouter.update()
 
-    def interrupt(self, signum, frame):
-        print(f'Caught signal {signum}')
-        self.shutdown_flag.set()
+    def interrupt(self):
+        self.interrupted.set()
