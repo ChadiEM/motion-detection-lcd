@@ -4,19 +4,7 @@ from threading import RLock, Event, Thread
 from timeouter.trigger import Trigger
 
 
-class Timeouter:
-    def __init__(self, timeout: int, trigger: Trigger):
-        self.off_thread = TurnOffThread(timeout, trigger)
-        self.off_thread.start()
-
-        # start with activity, and allow expiry (and turning off) to be triggered
-        self.off_thread.motion_detected()
-
-    def update(self):
-        self.off_thread.motion_detected()
-
-
-class TurnOffThread(Thread):
+class Timeouter(Thread):
     def __init__(self, timeout: int, trigger: Trigger):
         super().__init__(daemon=True)
         self.timeout = timeout
@@ -25,7 +13,12 @@ class TurnOffThread(Thread):
         self.lock = RLock()
         self.expiry = self._updated_expiry()
 
-    def motion_detected(self):
+        self.start()
+
+        # start with activity, and allow expiry (and turning off) to be triggered
+        self.update()
+
+    def update(self):
         self.expiry = self._updated_expiry()
 
         self.lock.acquire()
