@@ -1,37 +1,55 @@
-import sched
-import threading
 import time
+from threading import RLock, Event, Thread
 
 from timeouter.trigger import Trigger
 
 
 class Timeouter:
     def __init__(self, timeout: int, trigger: Trigger):
-        self.timeout = timeout
-        self.trigger = trigger
-        self.scheduler = sched.scheduler(time.time, time.sleep)
-        self.event = None
+        self.off_thread = TurnOffThread(timeout, trigger)
+        self.off_thread.start()
+
+        # start with activity, and allow expiry (and turning off) to be triggered
+        self.off_thread.motion_detected()
 
     def update(self):
-        if self.event is not None:
+        self.off_thread.motion_detected()
+
+
+class TurnOffThread(Thread):
+    def __init__(self, timeout: int, trigger: Trigger):
+        super().__init__(daemon=True)
+        self.timeout = timeout
+        self.trigger = trigger
+        self.event_active = Event()
+        self.lock = RLock()
+        self.expiry = self._updated_expiry()
+
+    def motion_detected(self):
+        self.expiry = self._updated_expiry()
+
+        self.lock.acquire()
+        try:
+            if not self.event_active.is_set():
+                self.trigger.turn_on()
+                self.event_active.set()
+        finally:
+            self.lock.release()
+
+    def run(self) -> None:
+        while True:
+            # block until an activity occurs
+            self.event_active.wait()
+
+            time.sleep(max(self.expiry - time.time(), 0))
+
+            self.lock.acquire()
             try:
-                self.scheduler.cancel(self.event)
-            except ValueError:
-                pass
-        else:
-            self.__on()
+                if time.time() > self.expiry:
+                    self.trigger.turn_off()
+                    self.event_active.clear()
+            finally:
+                self.lock.release()
 
-        self.event = self.scheduler.enter(self.timeout, 1, self.__off, ())
-        self.__run_in_thread()
-
-    def __on(self):
-        self.trigger.turn_on()
-
-    def __off(self):
-        self.event = None
-        self.trigger.turn_off()
-
-    def __run_in_thread(self):
-        t = threading.Thread(target=self.scheduler.run)
-        t.setDaemon(True)
-        t.start()
+    def _updated_expiry(self):
+        return time.time() + self.timeout
