@@ -1,6 +1,6 @@
 import threading
 
-import RPi.GPIO as GPIO
+from gpiozero import MotionSensor
 
 
 class GPIOListener:
@@ -12,20 +12,17 @@ class GPIOListener:
         self.interrupted = threading.Event()
 
     def start(self):
+        pir = MotionSensor(self._pin)
         try:
-            GPIO.setmode(GPIO.BCM)
-            GPIO.setup(self._pin, GPIO.IN)
-
-            GPIO.add_event_detect(self._pin, GPIO.RISING, callback=self.motion)
+            pir.when_motion = self.motion
             self.interrupted.wait()
         finally:
-            GPIO.remove_event_detect(self._pin)
-            GPIO.cleanup()
+            pir.close()
             print('Shutdown gracefully.')
 
     def motion(self, channel):
         if self._verbose:
-            print(f'Motion detected on channel {channel}!')
+            print(f'Motion detected on {channel.pin}!')
 
         self._timeouter.update()
 
